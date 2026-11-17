@@ -1,0 +1,63 @@
+name: Build macOS 12 Intel
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15-intel
+    timeout-minutes: 180
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Install pnpm
+        run: npm install --global pnpm@11.20.0
+
+      - name: Install Rust 1.97.1
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Rust core and desktop bundles for macOS x64
+        run: pnpm build:macos:x64
+
+      - name: Package unsigned/ad-hoc DMG and ZIP for macOS 12+
+        run: pnpm exec electron-builder --mac dmg zip --x64 --publish never -c.mac.identity=- -c.mac.minimumSystemVersion=12.0
+
+      - name: Verify architecture and minimum system version
+        run: |
+          set -euo pipefail
+          APP="dist/mac/Rovai AI.app"
+          test -d "$APP"
+          echo "LSMinimumSystemVersion=$(plutil -extract LSMinimumSystemVersion raw "$APP/Contents/Info.plist")"
+          echo "App: $(lipo -archs "$APP/Contents/MacOS/Rovai AI")"
+          echo "rovai-host: $(lipo -archs "$APP/Contents/Resources/bin/rovai-host")"
+          echo "rovai: $(lipo -archs "$APP/Contents/Resources/bin/rovai")"
+          test "$(plutil -extract LSMinimumSystemVersion raw "$APP/Contents/Info.plist")" = "12.0"
+          lipo -archs "$APP/Contents/MacOS/Rovai AI" | grep -qx "x86_64"
+          lipo -archs "$APP/Contents/Resources/bin/rovai-host" | grep -qx "x86_64"
+
+      - name: Upload macOS 12 Intel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rovai-macos12-x64
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+          retention-days: 14
