@@ -59,7 +59,7 @@ jobs:
           echo "App: $(lipo -archs "$APP/Contents/MacOS/Rovai AI")"
           echo "rovai-host: $(lipo -archs "$APP/Contents/Resources/bin/rovai-host")"
           echo "rovai: $(lipo -archs "$APP/Contents/Resources/bin/rovai")"
-          test "$(plutil -extract LSMinimumSystemVersion raw "$APP/Contents/Info.plist")" = "12.0"
+          plutil -extract LSMinimumSystemVersion raw "$APP/Contents/Info.plist" | grep -qxE '12(\.0)?'
           lipo -archs "$APP/Contents/MacOS/Rovai AI" | grep -qx "x86_64"
           lipo -archs "$APP/Contents/Resources/bin/rovai-host" | grep -qx "x86_64"
           unzip -t "dist/Rovai-AI-"*"-x64-macos12.zip" >/dev/null
