@@ -30,14 +30,25 @@ jobs:
           rustup toolchain install 1.97.1 --profile minimal
           rustup default 1.97.1
 
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build Rust core and desktop bundles for macOS x64
         run: pnpm build:macos:x64
 
-      - name: Package unsigned/ad-hoc DMG and ZIP for macOS 12+
-        run: pnpm exec electron-builder --mac dmg zip --x64 --publish never -c.mac.identity=- -c.mac.minimumSystemVersion=12.0
+      - name: Package ad-hoc App and ZIP for macOS 12+
+        run: |
+          set -euo pipefail
+          pnpm exec electron-builder --mac dir --x64 --publish never -c.mac.identity=- -c.mac.minimumSystemVersion=12.0
+          APP="dist/mac/Rovai AI.app"
+          test -d "$APP"
+          VERSION="$(node -p "require('./package.json').version")"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "dist/Rovai-AI-${VERSION}-x64-macos12.zip"
 
       - name: Verify architecture and minimum system version
         run: |
@@ -51,13 +62,12 @@ jobs:
           test "$(plutil -extract LSMinimumSystemVersion raw "$APP/Contents/Info.plist")" = "12.0"
           lipo -archs "$APP/Contents/MacOS/Rovai AI" | grep -qx "x86_64"
           lipo -archs "$APP/Contents/Resources/bin/rovai-host" | grep -qx "x86_64"
+          unzip -t "dist/Rovai-AI-"*"-x64-macos12.zip" >/dev/null
 
-      - name: Upload macOS 12 Intel artifacts
+      - name: Upload macOS 12 Intel ZIP
         uses: actions/upload-artifact@v4
         with:
           name: rovai-macos12-x64
-          path: |
-            dist/*.dmg
-            dist/*.zip
+          path: dist/*-x64-macos12.zip
           if-no-files-found: error
           retention-days: 14
