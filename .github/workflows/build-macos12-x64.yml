@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          ditto -c -k --sequesterRsrc --keepParent resources/bin/macos-x64 dist/rovai-binaries.zip
+          ditto -c -k --sequesterRsrc resources/bin/macos-x64 dist/rovai-binaries.zip
           unzip -l dist/rovai-binaries.zip
 
       - name: Upload Rust sidecars
@@ -85,7 +85,8 @@ jobs:
       - name: Restore Rust sidecars
         run: |
           set -euo pipefail
-          unzip -q dist/artifact/rovai-binaries.zip -d .
+          mkdir -p resources/bin/macos-x64
+          unzip -q dist/artifact/rovai-binaries.zip -d resources/bin/macos-x64
           chmod +x resources/bin/macos-x64/rovai-core resources/bin/macos-x64/rovai-host resources/bin/macos-x64/rovai
           lipo -archs resources/bin/macos-x64/rovai-host
           lipo -archs resources/bin/macos-x64/rovai
