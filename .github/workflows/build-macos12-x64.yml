@@ -7,9 +7,57 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: macos-15-intel
-    timeout-minutes: 180
+  build-rust:
+    runs-on: macos-14
+    timeout-minutes: 90
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 26
+
+      - name: Install pnpm
+        run: npm install --global pnpm@11.20.0
+
+      - name: Install Rust 1.97.1 with x86_64 target
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal
+          rustup default 1.97.1
+          rustup target add x86_64-apple-darwin
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: macos12-x64-arm64-host-v1
+          cache-on-failure: true
+
+      - name: Build x86_64 Rust sidecars
+        run: node scripts/build-core.mjs --release --target-key macos-x64
+
+      - name: Package Rust sidecars
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ditto -c -k --sequesterRsrc --keepParent resources/bin/macos-x64 dist/rovai-binaries.zip
+          unzip -l dist/rovai-binaries.zip
+
+      - name: Upload Rust sidecars
+        uses: actions/upload-artifact@v4
+        with:
+          name: rovai-macos12-x64-binaries
+          path: dist/rovai-binaries.zip
+          if-no-files-found: error
+          retention-days: 3
+
+  package:
+    needs: build-rust
+    runs-on: macos-14
+    timeout-minutes: 60
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       MACOSX_DEPLOYMENT_TARGET: "12.0"
@@ -25,21 +73,25 @@ jobs:
       - name: Install pnpm
         run: npm install --global pnpm@11.20.0
 
-      - name: Install Rust 1.97.1
-        run: |
-          rustup toolchain install 1.97.1 --profile minimal
-          rustup default 1.97.1
-
-      - name: Cache Rust build
-        uses: Swatinem/rust-cache@v2
-        with:
-          cache-on-failure: true
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Rust core and desktop bundles for macOS x64
-        run: pnpm build:macos:x64
+      - name: Download Rust sidecars
+        uses: actions/download-artifact@v4
+        with:
+          name: rovai-macos12-x64-binaries
+          path: dist/artifact
+
+      - name: Restore Rust sidecars
+        run: |
+          set -euo pipefail
+          unzip -q dist/artifact/rovai-binaries.zip -d .
+          chmod +x resources/bin/macos-x64/rovai-core resources/bin/macos-x64/rovai-host resources/bin/macos-x64/rovai
+          lipo -archs resources/bin/macos-x64/rovai-host
+          lipo -archs resources/bin/macos-x64/rovai
+
+      - name: Build desktop bundles
+        run: pnpm build:desktop
 
       - name: Package ad-hoc App and ZIP for macOS 12+
         run: |
