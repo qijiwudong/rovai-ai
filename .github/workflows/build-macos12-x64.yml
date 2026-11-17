@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   build-rust:
-    runs-on: macos-14
+    runs-on: macos-15-intel
     timeout-minutes: 90
     env:
       MACOSX_DEPLOYMENT_TARGET: "12.0"
@@ -33,7 +33,7 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
         with:
-          key: macos12-x64-arm64-host-v1
+          prefix-key: v2
           cache-on-failure: true
 
       - name: Build x86_64 Rust sidecars
@@ -56,7 +56,7 @@ jobs:
 
   package:
     needs: build-rust
-    runs-on: macos-14
+    runs-on: macos-15-intel
     timeout-minutes: 60
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
